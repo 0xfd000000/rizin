@@ -37,6 +37,7 @@ rz_io_sources = [
   'p/io_winkd.c',
   'p/io_winedbg.c',
   'p/io_zip.c',
+  'p/io_srec.c',
 ]
 
 if host_machine.system() == 'windows'

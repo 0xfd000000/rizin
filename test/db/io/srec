@@ -1,0 +1,7 @@
+NAME=srec_test1.txt
+FILE=bins/srec/srec_test1.txt
+CMDS=<<EOF
+EOF
+EXPECT=<<EOF
+EOF
+RUN
