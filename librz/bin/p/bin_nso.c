@@ -142,7 +142,7 @@ static bool load_buffer(RzBinFile *bf, void **bin_obj, RzBuffer *buf, ut64 loada
 	return load_bytes(bf, bin_obj, bytes, sz, la, bf->sdb);
 }
 
-static RzBinAddr *binsym(RzBinFile *bf, int type) {
+static RzBinAddr *binsym(RzBinFile *bf, RzBinSpecialSymbol type) {
 	return NULL; // TODO
 }
 
@@ -267,7 +267,6 @@ static RzBinInfo *info(RzBinFile *bf) {
 	ret->type = strdup("EXEC (executable file)");
 	ret->bits = 64;
 	ret->has_va = true;
-	ret->has_lit = true;
 	ret->big_endian = false;
 	ret->dbg_info = 0;
 	return ret;

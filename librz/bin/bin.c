@@ -656,15 +656,6 @@ RZ_API void rz_bin_set_baddr(RzBin *bin, ut64 baddr) {
 	// maybe in RzBinFile.rebase() ?
 }
 
-RZ_API RzBinAddr *rz_bin_get_sym(RzBin *bin, int sym) {
-	rz_return_val_if_fail(bin, NULL);
-	RzBinObject *o = rz_bin_cur_object(bin);
-	if (sym < 0 || sym >= RZ_BIN_SYM_LAST) {
-		return NULL;
-	}
-	return o ? o->binsym[sym] : NULL;
-}
-
 // XXX: those accessors are redundant
 RZ_API RzList *rz_bin_get_entries(RzBin *bin) {
 	rz_return_val_if_fail(bin, NULL);
@@ -705,22 +696,6 @@ static RzList *relocs_rbtree2list(RBNode *root) {
 		rz_list_append(res, reloc);
 	}
 	return res;
-}
-
-RZ_API RBNode *rz_bin_patch_relocs(RzBin *bin) {
-	rz_return_val_if_fail(bin, NULL);
-	RzBinFile *bf = rz_bin_cur(bin);
-	if (!bf || !bf->o) {
-		return NULL;
-	}
-	return rz_bin_object_patch_relocs(bf, bf->o);
-}
-
-// return a list of <const RzBinReloc> that needs to be freed by the caller
-RZ_API RzList *rz_bin_patch_relocs_list(RzBin *bin) {
-	rz_return_val_if_fail(bin, NULL);
-	RBNode *root = rz_bin_patch_relocs(bin);
-	return root ? relocs_rbtree2list(root) : NULL;
 }
 
 RZ_API RBNode *rz_bin_get_relocs(RzBin *bin) {
@@ -1265,29 +1240,6 @@ RZ_API RzList * /*<RzBinClass>*/ rz_bin_get_classes(RzBin *bin) {
 	rz_return_val_if_fail(bin, NULL);
 	RzBinObject *o = rz_bin_cur_object(bin);
 	return o ? o->classes : NULL;
-}
-
-/* returns vaddr, rebased with the baseaddr of bin, if va is enabled for bin,
- * paddr otherwise */
-RZ_API ut64 rz_bin_get_vaddr(RzBin *bin, ut64 paddr, ut64 vaddr) {
-	rz_return_val_if_fail(bin && paddr != UT64_MAX, UT64_MAX);
-
-	if (!bin->cur) {
-		return paddr;
-	}
-	/* hack to realign thumb symbols */
-	if (bin->cur->o && bin->cur->o->info && bin->cur->o->info->arch) {
-		if (bin->cur->o->info->bits == 16) {
-			RzBinSection *s = rz_bin_get_section_at(bin->cur->o, paddr, false);
-			// autodetect thumb
-			if (s && (s->perm & RZ_PERM_X) && strstr(s->name, "text")) {
-				if (!strcmp(bin->cur->o->info->arch, "arm") && (vaddr & 1)) {
-					vaddr = (vaddr >> 1) << 1;
-				}
-			}
-		}
-	}
-	return rz_bin_file_get_vaddr(bin->cur, paddr, vaddr);
 }
 
 RZ_API ut64 rz_bin_get_size(RzBin *bin) {

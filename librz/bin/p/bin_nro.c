@@ -54,7 +54,7 @@ static bool load_buffer(RzBinFile *bf, void **bin_obj, RzBuffer *b, ut64 loadadd
 	return true;
 }
 
-static RzBinAddr *binsym(RzBinFile *bf, int type) {
+static RzBinAddr *binsym(RzBinFile *bf, RzBinSpecialSymbol type) {
 	return NULL; // TODO
 }
 
@@ -243,7 +243,6 @@ static RzBinInfo *info(RzBinFile *bf) {
 	}
 	ret->bits = 64;
 	ret->has_va = true;
-	ret->has_lit = true;
 	ret->big_endian = false;
 	ret->dbg_info = 0;
 	ret->dbg_info = 0;
