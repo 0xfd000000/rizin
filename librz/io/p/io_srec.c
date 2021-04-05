@@ -1,7 +1,4 @@
-// SPDX-FileCopyrightText: 2013-2017 pancake <pancake@nopcode.org>
-// SPDX-FileCopyrightText: 2013-2017 fenugrec <fenugrec@users.sourceforge.net>
-// SPDX-License-Identifier: LGPL-3.0-only
-// Contributed by manouser <manolache.alexandru8@gmail.com>
+// Copyright: Manolache183 <manolache.alexandru8@gmail.com>
 
 /*
 *** SREC format description : every line follows this pattern
@@ -11,8 +8,7 @@
 
 //sauce : https://en.wikipedia.org/wiki/SREC_(file_format)
 
-**** example records, not sure about new adresses tho
-	every other function besides SREC parse is from io_ihex.c
+**** example records
 
 S00F000068656C6C6F202020202000003C
 S11F00007C0802A6900100049421FFF07C6C1B787C8C23783C6000003863000026
@@ -24,12 +20,13 @@ S9030000FC
 #include "rz_io.h"
 #include "rz_lib.h"
 #include "rz_util.h"
-#include <limits.h> //for INT_MAX
+//#include "rz_types_base.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 
 #define NMAX 100
+#define SREC_PATH_PREFIX "srec://"
 
 //struct Rihex : holds sparse buffer + its own fd, for internal management
 typedef struct {
@@ -79,14 +76,12 @@ static int __write(RzIO *io, RzIODesc *fd, const ut8 *buf, int count) {
 
 		if (addh0 != addh1) {
 			//we cross a 64k boundary, so write in two steps
-			//04 record (ext address)
 			if (fw04b(out, addh0) < 0) {
 				eprintf("srec:write: file error\n");
 				rz_list_free(nonempty);
 				fclose(out);
 				return -1;
 			}
-			//00 records (data)
 			tsiz = -addl0;
 			addl0 = 0;
 			if (fwblock(out, rbs->data, rbs->from, tsiz)) {
@@ -96,14 +91,12 @@ static int __write(RzIO *io, RzIODesc *fd, const ut8 *buf, int count) {
 				return -1;
 			}
 		}
-		//04 record (ext address)
 		if (fw04b(out, addh1) < 0) {
 			eprintf("srec:write: file error\n");
 			rz_list_free(nonempty);
 			fclose(out);
 			return -1;
 		}
-		//00 records (remaining data)
 		if (fwblock(out, rbs->data + tsiz, (addh1 << 16) | addl0, rbs->size - tsiz)) {
 			eprintf("srec:fwblock error\n");
 			rz_list_free(nonempty);
@@ -120,7 +113,7 @@ static int __write(RzIO *io, RzIODesc *fd, const ut8 *buf, int count) {
 }
 
 //write contiguous block of data to file; ret 0 if ok
-//max 65535 bytes; assumes a 04 rec was written before
+//max 65535 bytes; 
 static int fwblock(FILE *fd, ut8 *b, ut32 start_addr, ut16 size) {
 	ut8 cks;
 	char linebuf[80];
@@ -175,7 +168,6 @@ static int fwblock(FILE *fd, ut8 *b, ut32 start_addr, ut16 size) {
 	return 0;
 }
 
-//fw04b : write 04 record (extended address); ret <0 if error
 static int fw04b(FILE *fd, ut16 eaddr) {
 	ut8 cks = 0 - (6 + (eaddr >> 8) + (eaddr & 0xff));
 	return fprintf(fd, ":02000004%04X%02X\n", eaddr, cks);
@@ -216,7 +208,7 @@ static ut64 __lseek(struct rz_io_t *io, RzIODesc *fd, ut64 offset, int whence) {
 }
 
 static bool __plugin_open(RzIO *io, const char *pathname, bool many) {
-	return (!strncmp(pathname, "srec://", 7));
+	return (!strncmp(pathname, SREC_PATH_PREFIX, strlen(SREC_PATH_PREFIX)));
 }
 
 //parsing function
@@ -232,7 +224,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 	int bc = 0, byte, i, l;
 	char type; // 1 digit
 	//fugly macro to prevent an overflow of rz_buf_write_at() len
-#define SEC_MAX (sec_size < INT_MAX) ? sec_size : INT_MAX
+#define SEC_MAX (sec_size < ST32_MAX) ? sec_size : INT_MAX
 	ut32 sec_size = 0;
 	const int sec_count = UT16_MAX;
 	sec_tmp = calloc(1, sec_count);
@@ -305,7 +297,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 						eprintf("unparsable data !\n");
 						goto fail;
 					}
-					cksum = ~(cksum & 0xff); //this might be useless cause cksum is ut8
+					cksum = ~cksum; //this might be useless cause cksum is ut8
 					if (cksum != byte) {
 						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
 						goto fail;
@@ -363,7 +355,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 						eprintf("unparsable data !\n");
 						goto fail;
 					}
-					cksum = ~(cksum & 0xff); //this might be useless cause cksum is ut8
+					cksum = ~cksum; //this might be useless cause cksum is ut8
 					if (cksum != byte) {
 						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
 						goto fail;
@@ -412,7 +404,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 						eprintf("unparsable data !\n");
 						goto fail;
 					}
-					cksum = ~(cksum & 0xff); //this might be useless cause cksum is ut8
+					cksum = ~cksum; //this might be useless cause cksum is ut8
 					if (cksum != byte) {
 						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
 						goto fail;
@@ -460,7 +452,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 						eprintf("unparsable data !\n");
 						goto fail;
 					}
-					cksum = ~(cksum & 0xff); //this might be useless cause cksum is ut8
+					cksum = ~cksum; //this might be useless cause cksum is ut8
 					if (cksum != byte) {
 						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
 						goto fail;
@@ -518,7 +510,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 						eprintf("unparsable data !\n");
 						goto fail;
 					}
-					cksum = ~(cksum & 0xff); //this might be useless cause cksum is ut8
+					cksum = ~cksum; //this might be useless cause cksum is ut8
 					if (cksum != byte) {
 						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
 						goto fail;
@@ -566,7 +558,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 						eprintf("unparsable data !\n");
 						goto fail;
 					}
-					cksum = ~(cksum & 0xff); //this might be useless cause cksum is ut8
+					cksum = ~cksum; //this might be useless cause cksum is ut8
 					if (cksum != byte) {
 						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
 						goto fail;
@@ -614,7 +606,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 						eprintf("unparsable data !\n");
 						goto fail;
 					}
-					cksum = ~(cksum & 0xff); //this might be useless cause cksum is ut8
+					cksum = ~cksum; //this might be useless cause cksum is ut8
 					if (cksum != byte) {
 						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
 						goto fail;
@@ -674,7 +666,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 						eprintf("unparsable data !\n");
 						goto fail;
 					}
-					cksum = ~(cksum & 0xff); //this might be useless cause cksum is ut8
+					cksum = ~cksum; //this might be useless cause cksum is ut8
 					if (cksum != byte) {
 						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
 						goto fail;
@@ -723,7 +715,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 						eprintf("unparsable data !\n");
 						goto fail;
 					}
-					cksum = ~(cksum & 0xff); //this might be useless cause cksum is ut8
+					cksum = ~cksum; //this might be useless cause cksum is ut8
 					if (cksum != byte) {
 						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
 						goto fail;
@@ -790,7 +782,7 @@ static bool __resize(RzIO *io, RzIODesc *fd, ut64 size) {
 RzIOPlugin rz_io_plugin_ihex = {
 	.name = "srec",
 	.desc = "Open intel SREC file",
-	.uris = "srec://",
+	.uris = SREC_PATH_PREFIX,
 	.license = "LGPL",
 	.open = __open,
 	.close = __close,
