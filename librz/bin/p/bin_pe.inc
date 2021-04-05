@@ -40,13 +40,15 @@ static ut64 baddr(RzBinFile *bf) {
 	return PE_(rz_bin_pe_get_image_base)(bf->o->bin_obj);
 }
 
-static RzBinAddr *binsym(RzBinFile *bf, int type) {
+static RzBinAddr *binsym(RzBinFile *bf, RzBinSpecialSymbol type) {
 	struct rz_bin_pe_addr_t *peaddr = NULL;
 	RzBinAddr *ret = NULL;
 	if (bf && bf->o && bf->o->bin_obj) {
 		switch (type) {
-		case RZ_BIN_SYM_MAIN:
+		case RZ_BIN_SPECIAL_SYMBOL_MAIN:
 			peaddr = PE_(rz_bin_pe_get_main_vaddr)(bf->o->bin_obj);
+			break;
+		default:
 			break;
 		}
 	}
@@ -475,7 +477,6 @@ static RzBinInfo *info(RzBinFile *bf) {
 	ret->bits = PE_(rz_bin_pe_get_bits)(bf->o->bin_obj);
 	ret->big_endian = PE_(rz_bin_pe_is_big_endian)(bf->o->bin_obj);
 	ret->dbg_info = 0;
-	ret->has_lit = true;
 	ret->has_canary = has_canary(bf);
 	ret->has_nx = haschr(bf, IMAGE_DLL_CHARACTERISTICS_NX_COMPAT);
 	ret->has_pi = haschr(bf, IMAGE_DLL_CHARACTERISTICS_DYNAMIC_BASE);

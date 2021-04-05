@@ -39,7 +39,7 @@ static ut64 baddr(RzBinFile *bf) {
 	return 0;
 }
 
-static RzBinAddr *binsym(RzBinFile *bf, int sym) {
+static RzBinAddr *binsym(RzBinFile *bf, RzBinSpecialSymbol sym) {
 	return NULL;
 }
 
@@ -528,7 +528,6 @@ static RzBinInfo *info(RzBinFile *bf) {
 	ret->big_endian = obj->endian;
 	ret->has_va = true;
 	ret->dbg_info = 0;
-	ret->has_lit = true;
 
 	if (rz_coff_is_stripped(obj)) {
 		ret->dbg_info |= RZ_BIN_DBG_STRIPPED;

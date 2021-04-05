@@ -518,7 +518,6 @@ static RzBinInfo *info(RzBinFile *bf) {
 	ret->subsystem = strdup("darwin");
 	ret->arch = strdup(MACH0_(get_cputype)(bf->o->bin_obj));
 	ret->machine = MACH0_(get_cpusubtype)(bf->o->bin_obj);
-	ret->has_lit = true;
 	ret->type = MACH0_(get_filetype)(bf->o->bin_obj);
 	ret->big_endian = MACH0_(is_big_endian)(bf->o->bin_obj);
 	ret->bits = 32;
@@ -1113,11 +1112,11 @@ static RzBuffer *create(RzBin *bin, const ut8 *code, int clen, const ut8 *data, 
 	return buf;
 }
 
-static RzBinAddr *binsym(RzBinFile *bf, int sym) {
+static RzBinAddr *binsym(RzBinFile *bf, RzBinSpecialSymbol sym) {
 	ut64 addr;
 	RzBinAddr *ret = NULL;
 	switch (sym) {
-	case RZ_BIN_SYM_MAIN:
+	case RZ_BIN_SPECIAL_SYMBOL_MAIN:
 		addr = MACH0_(get_main)(bf->o->bin_obj);
 		if (addr == UT64_MAX || !(ret = RZ_NEW0(RzBinAddr))) {
 			return NULL;
@@ -1127,6 +1126,8 @@ static RzBinAddr *binsym(RzBinFile *bf, int sym) {
 		ret->vaddr = ((addr >> 1) << 1);
 		//}
 		ret->paddr = ret->vaddr;
+		break;
+	default:
 		break;
 	}
 	return ret;
