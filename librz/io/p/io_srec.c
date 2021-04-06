@@ -256,8 +256,9 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			}
 
 			cksum = bc;
-			cksum += addr_tmp >> 8;
 			cksum += addr_tmp & 0xff;
+			cksum += addr_tmp >> 8;
+			
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
 				// previous block is not contiguous, or
@@ -314,8 +315,8 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			}
 
 			cksum = bc;
-			cksum += addr_tmp >> 8;
 			cksum += addr_tmp & 0xff;
+			cksum += addr_tmp >> 8;
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
 				// previous block is not contiguous, or
@@ -373,8 +374,8 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			}
 
 			cksum = bc;
-			cksum += addr_tmp >> 8;
 			cksum += addr_tmp & 0xff;
+			cksum += addr_tmp >> 8;
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
 				// previous block is not contiguous, or
@@ -395,7 +396,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			next_addr += bc;
 			if (eol) {
 				// checksum
-				if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
+				if (sscanf(str + 8, "%02x", &byte) != 1) {
 					eprintf("unparsable data !\n");
 					goto fail;
 				}
@@ -421,8 +422,8 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			}
 
 			cksum = bc;
-			cksum += addr_tmp >> 8;
 			cksum += addr_tmp & 0xff;
+			cksum += addr_tmp >> 8;
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
 				// previous block is not contiguous, or
@@ -443,7 +444,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			next_addr += bc;
 			if (eol) {
 				// checksum
-				if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
+				if (sscanf(str + 8, "%02x", &byte) != 1) {
 					eprintf("unparsable data !\n");
 					goto fail;
 				}
@@ -468,9 +469,9 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			}
 
 			cksum = bc;
-			cksum += addr_tmp >> 8;
-			cksum += addr_tmp >> 16;
 			cksum += addr_tmp & 0xff;
+			cksum += (addr_tmp >> 8) & 0xff;
+			cksum += addr_tmp >> 16;
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
 				// previous block is not contiguous, or
@@ -527,9 +528,9 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			}
 
 			cksum = bc;
-			cksum += addr_tmp >> 8;
-			cksum += addr_tmp >> 16;
 			cksum += addr_tmp & 0xff;
+			cksum += (addr_tmp >> 8) & 0xff;
+			cksum += addr_tmp >> 16;
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
 				// previous block is not contiguous, or
@@ -549,7 +550,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			next_addr += bc;
 			if (eol) {
 				// checksum
-				if (sscanf(str + 10 + (i * 2), "%02x", &byte) != 1) {
+				if (sscanf(str + 10, "%02x", &byte) != 1) {
 					eprintf("unparsable data !\n");
 					goto fail;
 				}
@@ -575,9 +576,9 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			}
 
 			cksum = bc;
-			cksum += addr_tmp >> 8;
-			cksum += addr_tmp >> 16;
 			cksum += addr_tmp & 0xff;
+			cksum += (addr_tmp >> 8) & 0xff;
+			cksum += addr_tmp >> 16;
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
 				// previous block is not contiguous, or
@@ -597,7 +598,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			next_addr += bc;
 			if (eol) {
 				// checksum
-				if (sscanf(str + 10 + (i * 2), "%02x", &byte) != 1) {
+				if (sscanf(str + 10, "%02x", &byte) != 1) {
 					eprintf("unparsable data !\n");
 					goto fail;
 				}
@@ -623,10 +624,10 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			}
 
 			cksum = bc;
-			cksum += addr_tmp >> 8;
-			cksum += addr_tmp >> 16;
-			cksum += addr_tmp >> 24;
 			cksum += addr_tmp & 0xff;
+			cksum += (addr_tmp >> 8) & 0xff;
+			cksum += (addr_tmp >> 16) & 0xff;
+			cksum += addr_tmp >> 24;
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
 				// previous block is not contiguous, or
@@ -683,10 +684,10 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			}
 
 			cksum = bc;
-			cksum += addr_tmp >> 8;
-			cksum += addr_tmp >> 16;
-			cksum += addr_tmp >> 24;
 			cksum += addr_tmp & 0xff;
+			cksum += (addr_tmp >> 8) & 0xff;
+			cksum += (addr_tmp >> 16) & 0xff;
+			cksum += addr_tmp >> 24;
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
 				// previous block is not contiguous, or
@@ -706,7 +707,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			next_addr += bc;
 			if (eol) {
 				// checksum
-				if (sscanf(str + 12 + (i * 2), "%02x", &byte) != 1) {
+				if (sscanf(str + 12, "%02x", &byte) != 1) {
 					eprintf("unparsable data !\n");
 					goto fail;
 				}
