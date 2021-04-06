@@ -216,7 +216,6 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 	ut16 next_addr = 0; // for checking if records are sequential
 	char *eol;
 	ut8 cksum;
-	st32 extH, extL;
 	st32 bc = 0, byte, i, l;
 	char type; // 1 digit
 	// ugly macro to prevent an overflow of rz_buf_write_at() len
@@ -626,7 +625,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			cksum = bc;
 			cksum += addr_tmp >> 8;
 			cksum += addr_tmp >> 16;
-			cksum += addr_tmp >> 32;
+			cksum += addr_tmp >> 24;
 			cksum += addr_tmp & 0xff;
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
@@ -686,7 +685,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			cksum = bc;
 			cksum += addr_tmp >> 8;
 			cksum += addr_tmp >> 16;
-			cksum += addr_tmp >> 32;
+			cksum += addr_tmp >> 24;
 			cksum += addr_tmp & 0xff;
 
 			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
@@ -721,7 +720,7 @@ static bool SREC_parse(RzBuffer *rbuf, char *str) {
 			str = eol;
 			break;
 
-		case 4: // reserved
+		case 4: break; // reserved
 		}
 	} while (str);
 	free(sec_tmp);
