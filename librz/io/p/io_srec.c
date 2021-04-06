@@ -1,4 +1,5 @@
-// Copyright: Manolache183 <manolache.alexandru8@gmail.com>
+// SPDX-FileCopyrightText: 2021 Manolache183 <manolache.alexandru8@gmail.com>
+// SPDX-License-Identifier: LGPL-3.0-only
 
 /*
 *** SREC format description : every line follows this pattern
@@ -6,7 +7,7 @@
 
 	There are a bunch of types, from which one (S4) is reserved
 
-//sauce : https://en.wikipedia.org/wiki/SREC_(file_format)
+// source : https://en.wikipedia.org/wiki/SREC_(file_format)
 
 **** example records
 
@@ -17,30 +18,25 @@ S5030003F9
 S9030000FC
 */
 
-#include "rz_io.h"
-#include "rz_lib.h"
-#include "rz_util.h"
-//#include "rz_types_base.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <sys/types.h>
+#include <rz_io.h>
+#include <rz_lib.h>
 
-#define NMAX 100
+#define NMAX             100
 #define SREC_PATH_PREFIX "srec://"
 
-//struct Rihex : holds sparse buffer + its own fd, for internal management
+// struct RzSREC : holds sparse buffer + its own fd, for internal management
 typedef struct {
-	int fd;
+	st32 fd;
 	RzBuffer *rbuf;
-} Rihex;
+} RzSREC;
 
-static int fw04b(FILE *fd, ut16 eaddr);
-static int fwblock(FILE *fd, ut8 *b, ut32 start_addr, ut16 size);
+static st32 fw04b(FILE *fd, ut16 eaddr);
+static st32 fwblock(FILE *fd, ut8 *b, ut32 start_addr, ut16 size);
 
-static int __write(RzIO *io, RzIODesc *fd, const ut8 *buf, int count) {
+static st32 __write(RzIO *io, RzIODesc *fd, const ut8 *buf, st32 count) {
 	const char *pathname;
 	FILE *out;
-	Rihex *rih;
+	RzSREC *rih;
 	RzBufferSparse *rbs;
 	RzListIter *iter;
 
@@ -63,7 +59,7 @@ static int __write(RzIO *io, RzIODesc *fd, const ut8 *buf, int count) {
 	rz_buf_seek(rih->rbuf, count, RZ_BUF_CUR);
 
 	/* disk write : process each sparse chunk */
-	//TODO : sort addresses + check overlap?
+	// TODO : sort addresses + check overlap?
 	RzList *nonempty = rz_buf_nonempty_list(rih->rbuf);
 	rz_list_foreach (nonempty, iter, rbs) {
 		ut16 addl0 = rbs->from & 0xffff;
@@ -75,7 +71,7 @@ static int __write(RzIO *io, RzIODesc *fd, const ut8 *buf, int count) {
 		}
 
 		if (addh0 != addh1) {
-			//we cross a 64k boundary, so write in two steps
+			// we cross a 64k boundary, so write in two steps
 			if (fw04b(out, addh0) < 0) {
 				eprintf("srec:write: file error\n");
 				rz_list_free(nonempty);
@@ -103,7 +99,7 @@ static int __write(RzIO *io, RzIODesc *fd, const ut8 *buf, int count) {
 			fclose(out);
 			return -1;
 		}
-	} //list_foreach
+	} // list_foreach
 
 	rz_list_free(nonempty);
 	fprintf(out, ":00000001FF\n");
@@ -112,14 +108,14 @@ static int __write(RzIO *io, RzIODesc *fd, const ut8 *buf, int count) {
 	return 0;
 }
 
-//write contiguous block of data to file; ret 0 if ok
-//max 65535 bytes; 
-static int fwblock(FILE *fd, ut8 *b, ut32 start_addr, ut16 size) {
+// write contiguous block of data to file; ret 0 if ok
+// max 65535 bytes;
+static st32 fwblock(FILE *fd, ut8 *b, ut32 start_addr, ut16 size) {
 	ut8 cks;
 	char linebuf[80];
 	ut16 last_addr;
-	int j;
-	ut32 i; //has to be bigger than size !
+	st32 j;
+	ut32 i; // has to be bigger than size !
 
 	if (size < 1 || !fd || !b) {
 		return -1;
@@ -143,7 +139,7 @@ static int fwblock(FILE *fd, ut8 *b, ut32 start_addr, ut16 size) {
 		start_addr += 0x10;
 		b += 0x10;
 		if ((start_addr & 0xffff) < 0x10) {
-			//addr rollover: write ext address record
+			// addr rollover: write ext address record
 			if (fw04b(fd, start_addr >> 16) < 0) {
 				return -1;
 			}
@@ -152,7 +148,7 @@ static int fwblock(FILE *fd, ut8 *b, ut32 start_addr, ut16 size) {
 	if (i == size) {
 		return 0;
 	}
-	//write crumbs
+	// write crumbs
 	last_addr = i + start_addr;
 	cks = -last_addr;
 	cks -= last_addr >> 8;
@@ -168,37 +164,37 @@ static int fwblock(FILE *fd, ut8 *b, ut32 start_addr, ut16 size) {
 	return 0;
 }
 
-static int fw04b(FILE *fd, ut16 eaddr) {
+static st32 fw04b(FILE *fd, ut16 eaddr) {
 	ut8 cks = 0 - (6 + (eaddr >> 8) + (eaddr & 0xff));
 	return fprintf(fd, ":02000004%04X%02X\n", eaddr, cks);
 }
 
-static int __read(RzIO *io, RzIODesc *fd, ut8 *buf, int count) {
+static st32 __read(RzIO *io, RzIODesc *fd, ut8 *buf, st32 count) {
 	if (!fd || !fd->data || (count <= 0)) {
 		return -1;
 	}
-	Rihex *rih = fd->data;
+	RzSREC *rih = fd->data;
 	memset(buf, io->Oxff, count);
-	int r = rz_buf_read_at(rih->rbuf, io->off, buf, count);
+	st32 r = rz_buf_read_at(rih->rbuf, io->off, buf, count);
 	if (r >= 0) {
 		rz_buf_seek(rih->rbuf, r, RZ_BUF_CUR);
 	}
 	return r;
 }
 
-static int __close(RzIODesc *fd) {
+static st32 __close(RzIODesc *fd) {
 	if (!fd || !fd->data) {
 		return -1;
 	}
-	Rihex *rih = fd->data;
+	RzSREC *rih = fd->data;
 	rz_buf_free(rih->rbuf);
 	free(rih);
 	fd->data = NULL;
 	return 0;
 }
 
-static ut64 __lseek(struct rz_io_t *io, RzIODesc *fd, ut64 offset, int whence) {
-	Rihex *rih;
+static ut64 __lseek(struct rz_io_t *io, RzIODesc *fd, ut64 offset, st32 whence) {
+	RzSREC *rih;
 	if (!fd || !fd->data) {
 		return -1;
 	}
@@ -211,522 +207,522 @@ static bool __plugin_open(RzIO *io, const char *pathname, bool many) {
 	return (!strncmp(pathname, SREC_PATH_PREFIX, strlen(SREC_PATH_PREFIX)));
 }
 
-//parsing function
+// parsing function
 static bool SREC_parse(RzBuffer *rbuf, char *str) {
 	ut8 *sec_tmp;
-	ut32 sec_start = 0; //addr for next section write
-	ut32 segreg = 0; //basis for addr fields
-	ut32 addr_tmp = 0; //addr for record
-	ut16 next_addr = 0; //for checking if records are sequential
+	ut32 sec_start = 0; // addr for next section write
+	ut32 segreg = 0; // basis for addr fields
+	ut32 addr_tmp = 0; // addr for record
+	ut16 next_addr = 0; // for checking if records are sequential
 	char *eol;
 	ut8 cksum;
-	int extH, extL;
-	int bc = 0, byte, i, l;
+	st32 extH, extL;
+	st32 bc = 0, byte, i, l;
 	char type; // 1 digit
-	//fugly macro to prevent an overflow of rz_buf_write_at() len
-#define SEC_MAX (sec_size < ST32_MAX) ? sec_size : INT_MAX
+	// ugly macro to prevent an overflow of rz_buf_write_at() len
+#define SEC_MAX (sec_size < ST32_MAX) ? sec_size : ST32_MAX
 	ut32 sec_size = 0;
-	const int sec_count = UT16_MAX;
+	const st32 sec_count = UT16_MAX;
 	sec_tmp = calloc(1, sec_count);
 	if (!sec_tmp) {
 		goto fail;
 	}
 	do {
-		
+
 		l = sscanf(str, "S%c%02x", &type, &bc);
 		if (l != 2) {
 			eprintf("Invalid data in SREC file (%.*s)\n", 80, str);
 			goto fail;
 		}
-		
+
 		bc &= 0xff;
 		type &= 0xff;
 
-		//format: S / Type / Byte_Count / Adress / Data / Checksum 
-		//first we tackle the 16bit adress cases
-		//then the 24 bit
-		//then the 32 bit
+		// format: S / Type / Byte_Count / Adress / Data / Checksum
+		// first we tackle the 16bit adress cases
+		// then the 24 bit
+		// then the 32 bit
 
 		switch (type) {
-			case 0: // 16 bit adress, with header instead of data field
-				
-				// S / 0 / (addres+data+checksum) bytes / 0000 / header / checksum
-				
-				l = sscanf(str + 4, "%04x", &addr_tmp);			
-				addr_tmp &= 0xffff;
-				
-				eol = strchr(str + 1, 'S');
-				if (eol) {
-					*eol = 0;
-				}
+		case 0: // 16 bit adress, with header instead of data field
 
-				cksum = bc;
-				cksum += addr_tmp >> 8;
-				cksum += addr_tmp & 0xff;
+			// S / 0 / (addres+data+checksum) bytes / 0000 / header / checksum
 
-				if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
-					//previous block is not contiguous, or
-					//section buffer is full => write a sparse chunk
-					if (sec_size && sec_size < UT16_MAX) {
-						if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (int)sec_size) != sec_size) {
-							eprintf("sparse buffer problem, giving up\n");
-							goto fail;
-						}
-					}
-					//advance cursor, reset section
-					sec_start = segreg + addr_tmp;
-					next_addr = addr_tmp;
-					sec_size = 0;
-				}
+			l = sscanf(str + 4, "%04x", &addr_tmp);
+			addr_tmp &= 0xffff;
 
-				for (i = 0; i < bc - 3; i++) {
-					if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					if (sec_size + i < sec_count) {
-						sec_tmp[sec_size + i] = (ut8)byte & 0xff;
-					}
-					cksum += byte;
-				}
-				sec_size += bc;
-				next_addr += bc;
-				if (eol) {
-					// checksum
-					if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					cksum = ~cksum; //this might be useless cause cksum is ut8
-					if (cksum != byte) {
-						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
-						goto fail;
-					}
-					*eol = 'S';
-				}
-				str = eol;
-				break;
-				
-			case 1: // 16 bit adress, with data field!, kinda same with S0
-				
-				// S / 1 / (addres+data+checksum) bytes / 0000 / data / checksum
-				l = sscanf(str + 4, "%04x", &addr_tmp);			
-				addr_tmp &= 0xffff;
-				
-				eol = strchr(str + 1, 'S');
-				if (eol) {
-					*eol = 0;
-				}
-
-				cksum = bc;
-				cksum += addr_tmp >> 8;
-				cksum += addr_tmp & 0xff;
-
-				if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
-					//previous block is not contiguous, or
-					//section buffer is full => write a sparse chunk
-					if (sec_size && sec_size < UT16_MAX) {
-						if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (int)sec_size) != sec_size) {
-							eprintf("sparse buffer problem, giving up\n");
-							goto fail;
-						}
-					}
-					//advance cursor, reset section
-					sec_start = segreg + addr_tmp;
-					next_addr = addr_tmp;
-					sec_size = 0;
-				}
-
-				for (i = 0; i < bc - 3; i++) {
-					if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					if (sec_size + i < sec_count) {
-						sec_tmp[sec_size + i] = (ut8)byte & 0xff;
-					}
-					cksum += byte;
-				}
-				sec_size += bc;
-				next_addr += bc;
-				if (eol) {
-					// checksum
-					if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					cksum = ~cksum; //this might be useless cause cksum is ut8
-					if (cksum != byte) {
-						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
-						goto fail;
-					}
-					*eol = 'S';
-				}
-				str = eol;
-				break;
-
-			case 5: //optional, the adress field is a 16bit counter of S1/S2/S3 records
-
-				// S / 5 / (counter+checksum) bytes (3)/ counter / - / checksum
-
-				l = sscanf(str + 4, "%04x", &addr_tmp);			
-				addr_tmp &= 0xffff;
-				
-				eol = strchr(str + 1, 'S');
-				if (eol) {
-					*eol = 0;
-				}
-
-				cksum = bc;
-				cksum += addr_tmp >> 8;
-				cksum += addr_tmp & 0xff;
-
-				if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
-					//previous block is not contiguous, or
-					//section buffer is full => write a sparse chunk
-					if (sec_size && sec_size < UT16_MAX) {
-						if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (int)sec_size) != sec_size) {
-							eprintf("sparse buffer problem, giving up\n");
-							goto fail;
-						}
-					}
-					//advance cursor, reset section
-					sec_start = segreg + addr_tmp;
-					next_addr = addr_tmp;
-					sec_size = 0;
-				}
-
-				sec_size += bc;
-				next_addr += bc;
-				if (eol) {
-					// checksum
-					if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					cksum = ~cksum; //this might be useless cause cksum is ut8
-					if (cksum != byte) {
-						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
-						goto fail;
-					}
-					*eol = 'S';
-				}
-				str = eol;
-				break;
-
-			case 9: //a lot like S5
-				// S / 9 / (counter+checksum) bytes (3)/ adress / - / checksum
-
-				l = sscanf(str + 4, "%04x", &addr_tmp);			
-				addr_tmp &= 0xffff;
-				
-				eol = strchr(str + 1, 'S');
-				if (eol) {
-					*eol = 0;
-				}
-
-				cksum = bc;
-				cksum += addr_tmp >> 8;
-				cksum += addr_tmp & 0xff;
-
-				if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
-					//previous block is not contiguous, or
-					//section buffer is full => write a sparse chunk
-					if (sec_size && sec_size < UT16_MAX) {
-						if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (int)sec_size) != sec_size) {
-							eprintf("sparse buffer problem, giving up\n");
-							goto fail;
-						}
-					}
-					//advance cursor, reset section
-					sec_start = segreg + addr_tmp;
-					next_addr = addr_tmp;
-					sec_size = 0;
-				}
-
-				sec_size += bc;
-				next_addr += bc;
-				if (eol) {
-					// checksum
-					if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					cksum = ~cksum; //this might be useless cause cksum is ut8
-					if (cksum != byte) {
-						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
-						goto fail;
-					}
-					*eol = 'S';
-				}
-				str = eol;
-				break;
-			case 2: // 24 bit adress, with data field!, kinda same with S1
-				
-				// S / 2 / (addres+data+checksum) bytes / 0000 / data / checksum
-				l = sscanf(str + 4, "%06x", &addr_tmp);			
-				addr_tmp &= 0xffffff;
-				
-				eol = strchr(str + 1, 'S');
-				if (eol) {
-					*eol = 0;
-				}
-
-				cksum = bc;
-				cksum += addr_tmp >> 8;
-				cksum += addr_tmp >> 16;
-				cksum += addr_tmp & 0xff;
-
-				if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
-					//previous block is not contiguous, or
-					//section buffer is full => write a sparse chunk
-					if (sec_size && sec_size < UT16_MAX) {
-						if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (int)sec_size) != sec_size) {
-							eprintf("sparse buffer problem, giving up\n");
-							goto fail;
-						}
-					}
-					//advance cursor, reset section
-					sec_start = segreg + addr_tmp;
-					next_addr = addr_tmp;
-					sec_size = 0;
-				}
-
-				for (i = 0; i < bc - 4; i++) {
-					if (sscanf(str + 10 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					if (sec_size + i < sec_count) {
-						sec_tmp[sec_size + i] = (ut8)byte & 0xff;
-					}
-					cksum += byte;
-				}
-				sec_size += bc;
-				next_addr += bc;
-				if (eol) {
-					// checksum
-					if (sscanf(str + 10 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					cksum = ~cksum; //this might be useless cause cksum is ut8
-					if (cksum != byte) {
-						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
-						goto fail;
-					}
-					*eol = 'S';
-				}
-				str = eol;
-				break;
-
-			case 6: //same with S5 but on 24 bits instead of 16
-				
-				// S / 6 / (addres+data+checksum) bytes / counter / - / checksum
-				l = sscanf(str + 4, "%06x", &addr_tmp);			
-				addr_tmp &= 0xffffff;
-				
-				eol = strchr(str + 1, 'S');
-				if (eol) {
-					*eol = 0;
-				}
-
-				cksum = bc;
-				cksum += addr_tmp >> 8;
-				cksum += addr_tmp >> 16;
-				cksum += addr_tmp & 0xff;
-
-				if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
-					//previous block is not contiguous, or
-					//section buffer is full => write a sparse chunk
-					if (sec_size && sec_size < UT16_MAX) {
-						if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (int)sec_size) != sec_size) {
-							eprintf("sparse buffer problem, giving up\n");
-							goto fail;
-						}
-					}
-					//advance cursor, reset section
-					sec_start = segreg + addr_tmp;
-					next_addr = addr_tmp;
-					sec_size = 0;
-				}
-				sec_size += bc;
-				next_addr += bc;
-				if (eol) {
-					// checksum
-					if (sscanf(str + 10 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					cksum = ~cksum; //this might be useless cause cksum is ut8
-					if (cksum != byte) {
-						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
-						goto fail;
-					}
-					*eol = 'S';
-				}
-				str = eol;
-				break;
-
-			case 8: //same with S9 but on 24 bits instead of 16
-				
-				// S / 8 / (addres+data+checksum) bytes / adress / - / checksum
-				l = sscanf(str + 4, "%06x", &addr_tmp);			
-				addr_tmp &= 0xffffff;
-				
-				eol = strchr(str + 1, 'S');
-				if (eol) {
-					*eol = 0;
-				}
-
-				cksum = bc;
-				cksum += addr_tmp >> 8;
-				cksum += addr_tmp >> 16;
-				cksum += addr_tmp & 0xff;
-
-				if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
-					//previous block is not contiguous, or
-					//section buffer is full => write a sparse chunk
-					if (sec_size && sec_size < UT16_MAX) {
-						if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (int)sec_size) != sec_size) {
-							eprintf("sparse buffer problem, giving up\n");
-							goto fail;
-						}
-					}
-					//advance cursor, reset section
-					sec_start = segreg + addr_tmp;
-					next_addr = addr_tmp;
-					sec_size = 0;
-				}
-				sec_size += bc;
-				next_addr += bc;
-				if (eol) {
-					// checksum
-					if (sscanf(str + 10 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					cksum = ~cksum; //this might be useless cause cksum is ut8
-					if (cksum != byte) {
-						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
-						goto fail;
-					}
-					*eol = 'S';
-				}
-				str = eol;
-				break;
-
-			case 3: // 32 bit adress, with data field!, kinda same with S1
-				
-				// S / 3 / (addres+data+checksum) bytes / address / data / checksum
-				l = sscanf(str + 4, "%08x", &addr_tmp);			
-				addr_tmp &= 0xffffffff;
-				
-				eol = strchr(str + 1, 'S');
-				if (eol) {
-					*eol = 0;
-				}
-
-				cksum = bc;
-				cksum += addr_tmp >> 8;
-				cksum += addr_tmp >> 16;
-				cksum += addr_tmp >> 32;
-				cksum += addr_tmp & 0xff;
-
-				if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
-					//previous block is not contiguous, or
-					//section buffer is full => write a sparse chunk
-					if (sec_size && sec_size < UT16_MAX) {
-						if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (int)sec_size) != sec_size) {
-							eprintf("sparse buffer problem, giving up\n");
-							goto fail;
-						}
-					}
-					//advance cursor, reset section
-					sec_start = segreg + addr_tmp;
-					next_addr = addr_tmp;
-					sec_size = 0;
-				}
-
-				for (i = 0; i < bc - 5; i++) {
-					if (sscanf(str + 12 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					if (sec_size + i < sec_count) {
-						sec_tmp[sec_size + i] = (ut8)byte & 0xff;
-					}
-					cksum += byte;
-				}
-				sec_size += bc;
-				next_addr += bc;
-				if (eol) {
-					// checksum
-					if (sscanf(str + 12 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					cksum = ~cksum; //this might be useless cause cksum is ut8
-					if (cksum != byte) {
-						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
-						goto fail;
-					}
-					*eol = 'S';
-				}
-				str = eol;
-				break;
-
-			case 7: //same with S9 but on 32 bits
-				
-				// S / 7 / (addres+data+checksum) bytes / address / - / checksum
-				l = sscanf(str + 4, "%08x", &addr_tmp);			
-				addr_tmp &= 0xffffffff;
-				
-				eol = strchr(str + 1, 'S');
-				if (eol) {
-					*eol = 0;
-				}
-
-				cksum = bc;
-				cksum += addr_tmp >> 8;
-				cksum += addr_tmp >> 16;
-				cksum += addr_tmp >> 32;
-				cksum += addr_tmp & 0xff;
-
-				if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
-					//previous block is not contiguous, or
-					//section buffer is full => write a sparse chunk
-					if (sec_size && sec_size < UT16_MAX) {
-						if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (int)sec_size) != sec_size) {
-							eprintf("sparse buffer problem, giving up\n");
-							goto fail;
-						}
-					}
-					//advance cursor, reset section
-					sec_start = segreg + addr_tmp;
-					next_addr = addr_tmp;
-					sec_size = 0;
-				}
-				sec_size += bc;
-				next_addr += bc;
-				if (eol) {
-					// checksum
-					if (sscanf(str + 12 + (i * 2), "%02x", &byte) != 1) {
-						eprintf("unparsable data !\n");
-						goto fail;
-					}
-					cksum = ~cksum; //this might be useless cause cksum is ut8
-					if (cksum != byte) {
-						eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
-						goto fail;
-					}
-					*eol = 'S';
-				}
-				str = eol;
-				break;
-
-			case 4: //reserved
+			eol = strchr(str + 1, 'S');
+			if (eol) {
+				*eol = 0;
 			}
+
+			cksum = bc;
+			cksum += addr_tmp >> 8;
+			cksum += addr_tmp & 0xff;
+
+			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
+				// previous block is not contiguous, or
+				// section buffer is full => write a sparse chunk
+				if (sec_size && sec_size < UT16_MAX) {
+					if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (st32)sec_size) != sec_size) {
+						eprintf("sparse buffer problem, giving up\n");
+						goto fail;
+					}
+				}
+				// advance cursor, reset section
+				sec_start = segreg + addr_tmp;
+				next_addr = addr_tmp;
+				sec_size = 0;
+			}
+
+			for (i = 0; i < bc - 3; i++) {
+				if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				if (sec_size + i < sec_count) {
+					sec_tmp[sec_size + i] = (ut8)byte & 0xff;
+				}
+				cksum += byte;
+			}
+			sec_size += bc;
+			next_addr += bc;
+			if (eol) {
+				// checksum
+				if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				cksum = ~cksum; //this might be useless cause cksum is ut8
+				if (cksum != byte) {
+					eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
+					goto fail;
+				}
+				*eol = 'S';
+			}
+			str = eol;
+			break;
+
+		case 1: // 16 bit adress, with data field!, kinda same with S0
+
+			// S / 1 / (addres+data+checksum) bytes / 0000 / data / checksum
+			l = sscanf(str + 4, "%04x", &addr_tmp);
+			addr_tmp &= 0xffff;
+
+			eol = strchr(str + 1, 'S');
+			if (eol) {
+				*eol = 0;
+			}
+
+			cksum = bc;
+			cksum += addr_tmp >> 8;
+			cksum += addr_tmp & 0xff;
+
+			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
+				// previous block is not contiguous, or
+				// section buffer is full => write a sparse chunk
+				if (sec_size && sec_size < UT16_MAX) {
+					if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (st32)sec_size) != sec_size) {
+						eprintf("sparse buffer problem, giving up\n");
+						goto fail;
+					}
+				}
+				// advance cursor, reset section
+				sec_start = segreg + addr_tmp;
+				next_addr = addr_tmp;
+				sec_size = 0;
+			}
+
+			for (i = 0; i < bc - 3; i++) {
+				if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				if (sec_size + i < sec_count) {
+					sec_tmp[sec_size + i] = (ut8)byte & 0xff;
+				}
+				cksum += byte;
+			}
+			sec_size += bc;
+			next_addr += bc;
+			if (eol) {
+				// checksum
+				if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				cksum = ~cksum;
+				if (cksum != byte) {
+					eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
+					goto fail;
+				}
+				*eol = 'S';
+			}
+			str = eol;
+			break;
+
+		case 5: // optional, the adress field is a 16bit counter of S1/S2/S3 records
+
+			// S / 5 / (counter+checksum) bytes (3)/ counter / - / checksum
+
+			l = sscanf(str + 4, "%04x", &addr_tmp);
+			addr_tmp &= 0xffff;
+
+			eol = strchr(str + 1, 'S');
+			if (eol) {
+				*eol = 0;
+			}
+
+			cksum = bc;
+			cksum += addr_tmp >> 8;
+			cksum += addr_tmp & 0xff;
+
+			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
+				// previous block is not contiguous, or
+				// section buffer is full => write a sparse chunk
+				if (sec_size && sec_size < UT16_MAX) {
+					if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (st32)sec_size) != sec_size) {
+						eprintf("sparse buffer problem, giving up\n");
+						goto fail;
+					}
+				}
+				// advance cursor, reset section
+				sec_start = segreg + addr_tmp;
+				next_addr = addr_tmp;
+				sec_size = 0;
+			}
+
+			sec_size += bc;
+			next_addr += bc;
+			if (eol) {
+				// checksum
+				if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				cksum = ~cksum;
+				if (cksum != byte) {
+					eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
+					goto fail;
+				}
+				*eol = 'S';
+			}
+			str = eol;
+			break;
+
+		case 9: // a lot like S5
+			// S / 9 / (counter+checksum) bytes (3)/ adress / - / checksum
+
+			l = sscanf(str + 4, "%04x", &addr_tmp);
+			addr_tmp &= 0xffff;
+
+			eol = strchr(str + 1, 'S');
+			if (eol) {
+				*eol = 0;
+			}
+
+			cksum = bc;
+			cksum += addr_tmp >> 8;
+			cksum += addr_tmp & 0xff;
+
+			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
+				// previous block is not contiguous, or
+				// section buffer is full => write a sparse chunk
+				if (sec_size && sec_size < UT16_MAX) {
+					if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (st32)sec_size) != sec_size) {
+						eprintf("sparse buffer problem, giving up\n");
+						goto fail;
+					}
+				}
+				// advance cursor, reset section
+				sec_start = segreg + addr_tmp;
+				next_addr = addr_tmp;
+				sec_size = 0;
+			}
+
+			sec_size += bc;
+			next_addr += bc;
+			if (eol) {
+				// checksum
+				if (sscanf(str + 8 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				cksum = ~cksum;
+				if (cksum != byte) {
+					eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
+					goto fail;
+				}
+				*eol = 'S';
+			}
+			str = eol;
+			break;
+		case 2: // 24 bit adress, with data field!, kinda same with S1
+
+			// S / 2 / (addres+data+checksum) bytes / 0000 / data / checksum
+			l = sscanf(str + 4, "%06x", &addr_tmp);
+			addr_tmp &= 0xffffff;
+
+			eol = strchr(str + 1, 'S');
+			if (eol) {
+				*eol = 0;
+			}
+
+			cksum = bc;
+			cksum += addr_tmp >> 8;
+			cksum += addr_tmp >> 16;
+			cksum += addr_tmp & 0xff;
+
+			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
+				// previous block is not contiguous, or
+				// section buffer is full => write a sparse chunk
+				if (sec_size && sec_size < UT16_MAX) {
+					if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (st32)sec_size) != sec_size) {
+						eprintf("sparse buffer problem, giving up\n");
+						goto fail;
+					}
+				}
+				// advance cursor, reset section
+				sec_start = segreg + addr_tmp;
+				next_addr = addr_tmp;
+				sec_size = 0;
+			}
+
+			for (i = 0; i < bc - 4; i++) {
+				if (sscanf(str + 10 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				if (sec_size + i < sec_count) {
+					sec_tmp[sec_size + i] = (ut8)byte & 0xff;
+				}
+				cksum += byte;
+			}
+			sec_size += bc;
+			next_addr += bc;
+			if (eol) {
+				// checksum
+				if (sscanf(str + 10 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				cksum = ~cksum; // this might be useless cause cksum is ut8
+				if (cksum != byte) {
+					eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
+					goto fail;
+				}
+				*eol = 'S';
+			}
+			str = eol;
+			break;
+
+		case 6: // same with S5 but on 24 bits instead of 16
+
+			// S / 6 / (addres+data+checksum) bytes / counter / - / checksum
+			l = sscanf(str + 4, "%06x", &addr_tmp);
+			addr_tmp &= 0xffffff;
+
+			eol = strchr(str + 1, 'S');
+			if (eol) {
+				*eol = 0;
+			}
+
+			cksum = bc;
+			cksum += addr_tmp >> 8;
+			cksum += addr_tmp >> 16;
+			cksum += addr_tmp & 0xff;
+
+			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
+				// previous block is not contiguous, or
+				// section buffer is full => write a sparse chunk
+				if (sec_size && sec_size < UT16_MAX) {
+					if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (st32)sec_size) != sec_size) {
+						eprintf("sparse buffer problem, giving up\n");
+						goto fail;
+					}
+				}
+				// advance cursor, reset section
+				sec_start = segreg + addr_tmp;
+				next_addr = addr_tmp;
+				sec_size = 0;
+			}
+			sec_size += bc;
+			next_addr += bc;
+			if (eol) {
+				// checksum
+				if (sscanf(str + 10 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				cksum = ~cksum; // this might be useless cause cksum is ut8
+				if (cksum != byte) {
+					eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
+					goto fail;
+				}
+				*eol = 'S';
+			}
+			str = eol;
+			break;
+
+		case 8: // same with S9 but on 24 bits instead of 16
+
+			// S / 8 / (addres+data+checksum) bytes / adress / - / checksum
+			l = sscanf(str + 4, "%06x", &addr_tmp);
+			addr_tmp &= 0xffffff;
+
+			eol = strchr(str + 1, 'S');
+			if (eol) {
+				*eol = 0;
+			}
+
+			cksum = bc;
+			cksum += addr_tmp >> 8;
+			cksum += addr_tmp >> 16;
+			cksum += addr_tmp & 0xff;
+
+			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
+				// previous block is not contiguous, or
+				// section buffer is full => write a sparse chunk
+				if (sec_size && sec_size < UT16_MAX) {
+					if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (st32)sec_size) != sec_size) {
+						eprintf("sparse buffer problem, giving up\n");
+						goto fail;
+					}
+				}
+				// advance cursor, reset section
+				sec_start = segreg + addr_tmp;
+				next_addr = addr_tmp;
+				sec_size = 0;
+			}
+			sec_size += bc;
+			next_addr += bc;
+			if (eol) {
+				// checksum
+				if (sscanf(str + 10 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				cksum = ~cksum;
+				if (cksum != byte) {
+					eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
+					goto fail;
+				}
+				*eol = 'S';
+			}
+			str = eol;
+			break;
+
+		case 3: // 32 bit adress, with data field!, kinda same with S1
+
+			// S / 3 / (addres+data+checksum) bytes / address / data / checksum
+			l = sscanf(str + 4, "%08x", &addr_tmp);
+			addr_tmp &= 0xffffffff;
+
+			eol = strchr(str + 1, 'S');
+			if (eol) {
+				*eol = 0;
+			}
+
+			cksum = bc;
+			cksum += addr_tmp >> 8;
+			cksum += addr_tmp >> 16;
+			cksum += addr_tmp >> 32;
+			cksum += addr_tmp & 0xff;
+
+			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
+				// previous block is not contiguous, or
+				// section buffer is full => write a sparse chunk
+				if (sec_size && sec_size < UT16_MAX) {
+					if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (st32)sec_size) != sec_size) {
+						eprintf("sparse buffer problem, giving up\n");
+						goto fail;
+					}
+				}
+				// advance cursor, reset section
+				sec_start = segreg + addr_tmp;
+				next_addr = addr_tmp;
+				sec_size = 0;
+			}
+
+			for (i = 0; i < bc - 5; i++) {
+				if (sscanf(str + 12 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				if (sec_size + i < sec_count) {
+					sec_tmp[sec_size + i] = (ut8)byte & 0xff;
+				}
+				cksum += byte;
+			}
+			sec_size += bc;
+			next_addr += bc;
+			if (eol) {
+				// checksum
+				if (sscanf(str + 12 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				cksum = ~cksum;
+				if (cksum != byte) {
+					eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
+					goto fail;
+				}
+				*eol = 'S';
+			}
+			str = eol;
+			break;
+
+		case 7: // same with S9 but on 32 bits
+
+			// S / 7 / (addres+data+checksum) bytes / address / - / checksum
+			l = sscanf(str + 4, "%08x", &addr_tmp);
+			addr_tmp &= 0xffffffff;
+
+			eol = strchr(str + 1, 'S');
+			if (eol) {
+				*eol = 0;
+			}
+
+			cksum = bc;
+			cksum += addr_tmp >> 8;
+			cksum += addr_tmp >> 16;
+			cksum += addr_tmp >> 32;
+			cksum += addr_tmp & 0xff;
+
+			if ((next_addr != addr_tmp) || ((sec_size + bc) > SEC_MAX)) {
+				// previous block is not contiguous, or
+				// section buffer is full => write a sparse chunk
+				if (sec_size && sec_size < UT16_MAX) {
+					if (rz_buf_write_at(rbuf, sec_start, sec_tmp, (st32)sec_size) != sec_size) {
+						eprintf("sparse buffer problem, giving up\n");
+						goto fail;
+					}
+				}
+				// advance cursor, reset section
+				sec_start = segreg + addr_tmp;
+				next_addr = addr_tmp;
+				sec_size = 0;
+			}
+			sec_size += bc;
+			next_addr += bc;
+			if (eol) {
+				// checksum
+				if (sscanf(str + 12 + (i * 2), "%02x", &byte) != 1) {
+					eprintf("unparsable data !\n");
+					goto fail;
+				}
+				cksum = ~cksum;
+				if (cksum != byte) {
+					eprintf("Checksum failed (got %02x expected %02x)\n", byte, cksum);
+					goto fail;
+				}
+				*eol = 'S';
+			}
+			str = eol;
+			break;
+
+		case 4: // reserved
+		}
 	} while (str);
 	free(sec_tmp);
 	return true;
@@ -735,15 +731,15 @@ fail:
 	return false;
 }
 
-static RzIODesc *__open(RzIO *io, const char *pathname, int rw, int mode) {
-	Rihex *mal = NULL;
+static RzIODesc *__open(RzIO *io, const char *pathname, st32 rw, st32 mode) {
+	RzSREC *mal = NULL;
 	char *str = NULL;
 	if (__plugin_open(io, pathname, 0)) {
 		str = rz_file_slurp(pathname + 7, NULL);
 		if (!str) {
 			return NULL;
 		}
-		mal = RZ_NEW0(Rihex);
+		mal = RZ_NEW0(RzSREC);
 		if (!mal) {
 			free(str);
 			return NULL;
@@ -772,16 +768,16 @@ static bool __resize(RzIO *io, RzIODesc *fd, ut64 size) {
 	if (!fd) {
 		return false;
 	}
-	Rihex *rih = fd->data;
+	RzSREC *rih = fd->data;
 	if (rih) {
 		return rz_buf_resize(rih->rbuf, size);
 	}
 	return false;
 }
 
-RzIOPlugin rz_io_plugin_ihex = {
+RzIOPlugin rz_io_plugin_srec = {
 	.name = "srec",
-	.desc = "Open intel SREC file",
+	.desc = "Motorola S-record file format",
 	.uris = SREC_PATH_PREFIX,
 	.license = "LGPL",
 	.open = __open,
