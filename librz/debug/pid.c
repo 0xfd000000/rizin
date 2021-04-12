@@ -108,7 +108,7 @@ RZ_API int rz_debug_thread_list(RzDebug *dbg, int pid, char fmt) {
 				pj_o(j);
 				pj_kb(j, "current", dbg->tid == p->pid);
 				pj_ki(j, "pid", p->pid);
-				pj_ks(j, "status", &p->status);
+				pj_ks(j, "status", strdup(&p->status));
 				pj_ks(j, "path", rz_strbuf_get(path));
 				pj_end(j);
 				break;
