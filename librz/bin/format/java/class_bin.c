@@ -763,7 +763,7 @@ RZ_API void rz_bin_java_class_as_source_code(RzBinJavaClass *bin, RzStrBuf *sb) 
 	rz_strbuf_append(sb, "}\n");
 }
 
-RZ_API RzBinAddr *rz_bin_java_class_resolve_symbol(RzBinJavaClass *bin, int resolve) {
+RZ_API RzBinAddr *rz_bin_java_class_resolve_symbol(RzBinJavaClass *bin, RzBinSpecialSymbol resolve) {
 	rz_return_val_if_fail(bin, NULL);
 
 	RzBinAddr *ret = RZ_NEW0(RzBinAddr);
@@ -785,12 +785,12 @@ RZ_API RzBinAddr *rz_bin_java_class_resolve_symbol(RzBinJavaClass *bin, int reso
 				continue;
 			}
 
-			if (resolve == RZ_BIN_SYM_ENTRY || resolve == RZ_BIN_SYM_INIT) {
+			if (resolve == RZ_BIN_SPECIAL_SYMBOL_ENTRY || resolve == RZ_BIN_SPECIAL_SYMBOL_INIT) {
 				if (strcmp(name, "<init>") != 0 && strcmp(name, "<clinit>") != 0) {
 					free(name);
 					continue;
 				}
-			} else if (resolve == RZ_BIN_SYM_MAIN) {
+			} else if (resolve == RZ_BIN_SPECIAL_SYMBOL_MAIN) {
 				if (strcmp(name, "main") != 0) {
 					free(name);
 					continue;
@@ -1546,7 +1546,6 @@ RZ_API RzList *rz_bin_java_class_as_sections(RzBinJavaClass *bin) {
 				continue;
 			}
 			snprintf(secname, sizeof(secname), "class.fields.%s.attr", tmp);
-			free(tmp);
 			if ((i + 1) < bin->fields_count && bin->fields[i + 1]) {
 				end_offset = bin->fields[i + 1]->offset;
 			} else {
@@ -1555,6 +1554,7 @@ RZ_API RzList *rz_bin_java_class_as_sections(RzBinJavaClass *bin) {
 			for (iname = 0; rz_list_find(sections, secname, compare_section_names); iname++) {
 				snprintf(secname, sizeof(secname), "class.fields.%s_%d.attr", tmp, iname);
 			}
+			free(tmp);
 			rz_list_append(sections, new_section(secname, field->offset, end_offset, RZ_PERM_R));
 		}
 		rz_list_append(sections,

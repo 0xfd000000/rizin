@@ -45,6 +45,7 @@ static void object_delete_items(RzBinObject *o) {
 	rz_list_free(o->sections);
 	rz_list_free(o->strings);
 	ht_up_free(o->strings_db);
+	ht_pp_free(o->import_name_symbols);
 	rz_list_free(o->symbols);
 	rz_list_free(o->classes);
 	ht_pp_free(o->classes_ht);
@@ -52,7 +53,7 @@ static void object_delete_items(RzBinObject *o) {
 	rz_bin_source_line_info_free(o->lines);
 	sdb_free(o->kv);
 	rz_list_free(o->mem);
-	for (i = 0; i < RZ_BIN_SYM_LAST; i++) {
+	for (i = 0; i < RZ_BIN_SPECIAL_SYMBOL_LAST; i++) {
 		free(o->binsym[i]);
 	}
 }
@@ -281,9 +282,6 @@ RZ_API int rz_bin_object_set_items(RzBinFile *bf, RzBinObject *o) {
 			if (p->regstate) {
 				o->regstate = p->regstate(bf);
 			}
-			if (p->maps) {
-				o->maps = p->maps(bf);
-			}
 		}
 	}
 
@@ -298,7 +296,7 @@ RZ_API int rz_bin_object_set_items(RzBinFile *bf, RzBinObject *o) {
 	}
 	// XXX this is expensive because is O(n^n)
 	if (p->binsym) {
-		for (i = 0; i < RZ_BIN_SYM_LAST; i++) {
+		for (i = 0; i < RZ_BIN_SPECIAL_SYMBOL_LAST; i++) {
 			o->binsym[i] = p->binsym(bf, i);
 			if (o->binsym[i]) {
 				o->binsym[i]->paddr += o->loadaddr;
@@ -324,12 +322,23 @@ RZ_API int rz_bin_object_set_items(RzBinFile *bf, RzBinObject *o) {
 		}
 	}
 	if (p->symbols) {
-		o->symbols = p->symbols(bf); // 5s
+		o->symbols = p->symbols(bf);
 		if (o->symbols) {
 			rz_warn_if_fail(o->symbols->free);
 			REBASE_PADDR(o, o->symbols, RzBinSymbol);
 			if (bin->filter) {
-				rz_bin_filter_symbols(bf, o->symbols); // 5s
+				rz_bin_filter_symbols(bf, o->symbols);
+			}
+			o->import_name_symbols = ht_pp_new0();
+			if (o->import_name_symbols) {
+				RzBinSymbol *sym;
+				RzListIter *it;
+				rz_list_foreach (o->symbols, it, sym) {
+					if (!sym->is_imported || !sym->name || !*sym->name) {
+						continue;
+					}
+					ht_pp_insert(o->import_name_symbols, sym->name, sym);
+				}
 			}
 		}
 	}
@@ -425,7 +434,7 @@ RZ_API int rz_bin_object_set_items(RzBinFile *bf, RzBinObject *o) {
 	return true;
 }
 
-RZ_IPI RBNode *rz_bin_object_patch_relocs(RzBinFile *bf, RzBinObject *o) {
+RZ_API RBNode *rz_bin_object_patch_relocs(RzBinFile *bf, RzBinObject *o) {
 	rz_return_val_if_fail(bf && o, NULL);
 
 	static bool first = true;
@@ -447,6 +456,18 @@ RZ_IPI RBNode *rz_bin_object_patch_relocs(RzBinFile *bf, RzBinObject *o) {
 		rz_list_free(tmp);
 	}
 	return o->relocs;
+}
+
+/**
+ * \brief Find the symbol that represents the given import
+ * This is necessary for example to determine the address of an import.
+ */
+RZ_API RzBinSymbol *rz_bin_object_get_symbol_of_import(RzBinObject *o, RzBinImport *imp) {
+	rz_return_val_if_fail(o && imp && imp->name, NULL);
+	if (!o->import_name_symbols) {
+		return NULL;
+	}
+	return ht_pp_find(o->import_name_symbols, imp->name, NULL);
 }
 
 RZ_IPI RzBinObject *rz_bin_object_get_cur(RzBin *bin) {
@@ -517,6 +538,48 @@ RZ_IPI void rz_bin_object_filter_strings(RzBinObject *bo) {
 	}
 }
 
+/**
+ * \brief Put the given address on top of o's base address
+ */
 RZ_API ut64 rz_bin_object_addr_with_base(RzBinObject *o, ut64 addr) {
 	return o ? addr + o->baddr_shift : addr;
+}
+
+/* \brief Resolve the given address pair to a vaddr if possible
+ * returns vaddr, rebased with the baseaddr of bin, if va is enabled for bin,
+ * paddr otherwise
+ */
+RZ_API ut64 rz_bin_object_get_vaddr(RzBinObject *o, ut64 paddr, ut64 vaddr) {
+	rz_return_val_if_fail(o, UT64_MAX);
+
+	if (paddr == UT64_MAX) {
+		// everything we have is the vaddr
+		return vaddr;
+	}
+
+	/* hack to realign thumb symbols */
+	if (o->info && o->info->arch) {
+		if (o->info->bits == 16) {
+			RzBinSection *s = rz_bin_get_section_at(o, paddr, false);
+			// autodetect thumb
+			if (s && (s->perm & RZ_PERM_X) && strstr(s->name, "text")) {
+				if (!strcmp(o->info->arch, "arm") && (vaddr & 1)) {
+					vaddr = (vaddr >> 1) << 1;
+				}
+			}
+		}
+	}
+
+	if (o->info && o->info->has_va) {
+		return rz_bin_object_addr_with_base(o, vaddr);
+	}
+	return paddr;
+}
+
+RZ_API RzBinAddr *rz_bin_object_get_special_symbol(RzBinObject *o, RzBinSpecialSymbol sym) {
+	rz_return_val_if_fail(o, NULL);
+	if (sym < 0 || sym >= RZ_BIN_SPECIAL_SYMBOL_LAST) {
+		return NULL;
+	}
+	return o ? o->binsym[sym] : NULL;
 }
