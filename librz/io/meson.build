@@ -33,11 +33,11 @@ rz_io_sources = [
   'p/io_self.c',
   'p/io_shm.c',
   'p/io_sparse.c',
+  'p/io_srec.c',
   'p/io_tcp.c',
   'p/io_winkd.c',
   'p/io_winedbg.c',
   'p/io_zip.c',
-  'p/io_srec.c',
 ]
 
 if host_machine.system() == 'windows'
